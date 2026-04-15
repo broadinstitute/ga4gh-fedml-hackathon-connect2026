@@ -1,0 +1,1 @@
+Here we contemplate a "Unit Cost Profile" for articulating the costs associated with each node within the federation
