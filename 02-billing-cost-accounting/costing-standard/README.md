@@ -45,3 +45,7 @@ These standards focus on payment and checkout interoperability rather than the d
 #### General W3C Web Standards
 
 W3C's broader web‑architecture and data‑format standards (e.g., **JSON‑LD**, digital receipts, and machine‑readable invoices) are often reused or mapped into billing systems, even if they are not "billing standards" in name.
+
+## Current Recommendation:
+
+Modelers training ML models in a federated learning network where nodes charge for data‑access, compute, data egress/ingress, and other fees—there is no single, ready‑made “billing protocol,” but we could build on ISO/IEC cloud‑metering‑and‑billing standards while using W3C‑style web‑data standards for expressing charges and usage.
