@@ -1,5 +1,4 @@
-# H1
-Overview
+# Overview
 
 Here we contemplate a "Unit Cost Profile" for articulating the costs associated with each node within the federation. In the prelude to the hackathon, discussions on this topic surfaced the following items/challenges for consideration:
 
