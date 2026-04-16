@@ -1,0 +1,553 @@
+openapi: "3.1.0"
+info:
+  title: GA4GH Provenance Server
+  version: "0.1.0"
+  description: |
+    A Beacon-style API for querying workflow provenance and data elements across
+    GA4GH federated sites.
+
+    Each data element can be linked to the workflow (registered via Dockstore / TRS)
+    that produced it, enabling cross-site provenance queries similar to the Beacon
+    Network for variant data.
+
+    ## Key concepts
+
+    - **ProvenanceRecord** — links a data element (DRS object) to a specific
+      workflow version and execution (WES run / TES task).
+    - **Workflow** — registered using a canonical TRS URI
+      (e.g. `trs://dockstore.org/workflow/...`), optionally auto-resolved from
+      the Dockstore API.
+    - **Federated query** — fans out to configured peer nodes and aggregates
+      results (Beacon Network pattern).
+    - **RO-Crate export** — any query result can be downloaded as a standards-
+      compliant RO-Crate zip archive.
+
+  contact:
+    name: GA4GH Federated ML Hackathon
+    url: https://github.com/kellrott/ga4gh-fedml-hackathon-connect2026
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+tags:
+  - name: service-info
+    description: GA4GH service-info compatible metadata
+  - name: workflows
+    description: Workflow registration and lookup
+  - name: records
+    description: Provenance record CRUD
+  - name: query
+    description: Beacon-style provenance queries
+  - name: federation
+    description: Fan-out queries to peer nodes
+
+paths:
+  /provenance/info:
+    get:
+      tags: [service-info]
+      operationId: getServiceInfo
+      summary: GA4GH service-info
+      responses:
+        "200":
+          description: Service information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceInfo"
+
+  /provenance/workflows:
+    get:
+      tags: [workflows]
+      operationId: listWorkflows
+      summary: List registered workflows
+      parameters:
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+      responses:
+        "200":
+          description: List of workflows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconWorkflowListResponse"
+
+    post:
+      tags: [workflows]
+      operationId: createWorkflow
+      summary: Register a workflow
+      description: |
+        Registers a workflow by its TRS URI. If the URI starts with `trs://`
+        and no name is provided, metadata is auto-resolved from the TRS registry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowCreate"
+      responses:
+        "201":
+          description: Workflow created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconWorkflowResponse"
+        "409":
+          description: Workflow already registered
+
+  /provenance/workflows/{workflowId}:
+    get:
+      tags: [workflows]
+      operationId: getWorkflow
+      summary: Get workflow details
+      parameters:
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "trs://dockstore.org/workflow/github.com/broadinstitute/gatk-workflows/broad-prod-wgs-germline-snps-indels"
+      responses:
+        "200":
+          description: Workflow details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconWorkflowResponse"
+        "404":
+          description: Workflow not found
+
+    put:
+      tags: [workflows]
+      operationId: updateWorkflow
+      summary: Update a registered workflow
+      parameters:
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowCreate"
+      responses:
+        "200":
+          description: Workflow updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconWorkflowResponse"
+        "404":
+          description: Workflow not found
+
+  /provenance/records:
+    get:
+      tags: [records]
+      operationId: listRecords
+      summary: List provenance records
+      parameters:
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+      responses:
+        "200":
+          description: List of records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconRecordListResponse"
+
+    post:
+      tags: [records]
+      operationId: createRecord
+      summary: Register a new provenance record
+      description: |
+        Links a data element (DRS object ID or path) to a workflow execution.
+        The workflow must be registered first, or will be auto-created as a stub.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvenanceRecordCreate"
+      responses:
+        "201":
+          description: Record created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconRecordResponse"
+
+  /provenance/records/{recordId}:
+    get:
+      tags: [records]
+      operationId: getRecord
+      summary: Get a specific provenance record
+      parameters:
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Provenance record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconRecordResponse"
+        "404":
+          description: Record not found
+
+    delete:
+      tags: [records]
+      operationId: deleteRecord
+      summary: Delete a provenance record
+      parameters:
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Record deleted
+        "404":
+          description: Record not found
+
+  /provenance/query:
+    post:
+      tags: [query]
+      operationId: queryRecords
+      summary: Query provenance records (Beacon-style)
+      description: |
+        Filter provenance records by workflow, version, site, or data element.
+        Mirrors the Beacon v2 query/response pattern.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvenanceQuery"
+      responses:
+        "200":
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconQueryResponse"
+
+  /provenance/query/export:
+    post:
+      tags: [query]
+      operationId: exportRecords
+      summary: Export matching records as an RO-Crate zip
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvenanceQuery"
+      responses:
+        "200":
+          description: RO-Crate zip archive
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+
+  /federated/query:
+    post:
+      tags: [federation]
+      operationId: federatedQuery
+      summary: Fan-out query to all peer nodes
+      description: |
+        Queries this node's peers in parallel and aggregates results.
+        Peer nodes are configured via the PROVENANCE_PEER_NODES environment variable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvenanceQuery"
+      responses:
+        "200":
+          description: Aggregated federated results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconFederatedResponse"
+
+  /federated/peers:
+    get:
+      tags: [federation]
+      operationId: listPeers
+      summary: List configured peer nodes
+      responses:
+        "200":
+          description: Peer node list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeaconPeersResponse"
+
+components:
+  parameters:
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 100
+        minimum: 1
+        maximum: 1000
+    offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+
+  schemas:
+    BeaconMeta:
+      type: object
+      properties:
+        beacon_id:
+          type: string
+        api_version:
+          type: string
+          default: "v0.1.0"
+        returned_granularity:
+          type: string
+          default: "record"
+
+    WorkflowCreate:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          description: Canonical TRS URI for the workflow
+          example: "trs://dockstore.org/workflow/github.com/broadinstitute/gatk-workflows/broad-prod-wgs-germline-snps-indels"
+        name:
+          type: string
+          nullable: true
+        version:
+          type: string
+          nullable: true
+        descriptor_type:
+          type: string
+          nullable: true
+          enum: [CWL, WDL, Nextflow, Galaxy, SMK, null]
+        description:
+          type: string
+          nullable: true
+        trs_url:
+          type: string
+          nullable: true
+        extra_metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    WorkflowRead:
+      allOf:
+        - $ref: "#/components/schemas/WorkflowCreate"
+        - type: object
+          properties:
+            created_at:
+              type: string
+              format: date-time
+
+    ProvenanceRecordCreate:
+      type: object
+      required: [data_element_id, workflow_id]
+      properties:
+        data_element_id:
+          type: string
+          description: DRS object ID or other resolvable data element identifier
+          example: "drs://drs.example.org/abc123"
+        workflow_id:
+          type: string
+          description: TRS URI of the producing workflow
+          example: "trs://dockstore.org/workflow/github.com/broadinstitute/gatk-workflows/broad-prod-wgs-germline-snps-indels"
+        workflow_version:
+          type: string
+          nullable: true
+        execution_id:
+          type: string
+          nullable: true
+          description: WES run ID or TES task ID
+        site:
+          type: string
+          nullable: true
+        parameters:
+          type: object
+          nullable: true
+          additionalProperties: true
+        execution_timestamp:
+          type: string
+          format: date-time
+          nullable: true
+        extra_metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    ProvenanceRecordRead:
+      allOf:
+        - $ref: "#/components/schemas/ProvenanceRecordCreate"
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            created_at:
+              type: string
+              format: date-time
+
+    ProvenanceQuery:
+      type: object
+      properties:
+        workflow_id:
+          type: string
+          nullable: true
+        workflow_version:
+          type: string
+          nullable: true
+        site:
+          type: string
+          nullable: true
+        data_element_id:
+          type: string
+          nullable: true
+        include_parameters:
+          type: boolean
+          default: false
+        limit:
+          type: integer
+          default: 100
+        offset:
+          type: integer
+          default: 0
+
+    ServiceInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: string
+        site:
+          type: string
+        type:
+          type: object
+          properties:
+            group:
+              type: string
+            artifact:
+              type: string
+            version:
+              type: string
+
+    # Beacon response envelopes
+    BeaconWorkflowResponse:
+      type: object
+      properties:
+        meta:
+          $ref: "#/components/schemas/BeaconMeta"
+        response:
+          $ref: "#/components/schemas/WorkflowRead"
+
+    BeaconWorkflowListResponse:
+      type: object
+      properties:
+        meta:
+          $ref: "#/components/schemas/BeaconMeta"
+        response:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowRead"
+
+    BeaconRecordResponse:
+      type: object
+      properties:
+        meta:
+          $ref: "#/components/schemas/BeaconMeta"
+        response:
+          $ref: "#/components/schemas/ProvenanceRecordRead"
+
+    BeaconRecordListResponse:
+      type: object
+      properties:
+        meta:
+          $ref: "#/components/schemas/BeaconMeta"
+        response:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProvenanceRecordRead"
+
+    BeaconQueryResponse:
+      type: object
+      properties:
+        meta:
+          $ref: "#/components/schemas/BeaconMeta"
+        response:
+          type: object
+          properties:
+            numTotalResults:
+              type: integer
+            results:
+              type: array
+              items:
+                $ref: "#/components/schemas/ProvenanceRecordRead"
+
+    BeaconFederatedResponse:
+      type: object
+      properties:
+        meta:
+          $ref: "#/components/schemas/BeaconMeta"
+        response:
+          type: object
+          properties:
+            numTotalResults:
+              type: integer
+            results:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            errors:
+              type: array
+              items:
+                type: string
+            queriedNodes:
+              type: array
+              items:
+                type: string
+
+    BeaconPeersResponse:
+      type: object
+      properties:
+        meta:
+          $ref: "#/components/schemas/BeaconMeta"
+        response:
+          type: object
+          properties:
+            peers:
+              type: array
+              items:
+                type: string

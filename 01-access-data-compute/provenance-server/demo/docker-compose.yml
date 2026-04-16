@@ -1,0 +1,41 @@
+# Two-node demo for the GA4GH Provenance Server
+# Demonstrates federated provenance queries across two simulated sites.
+
+services:
+  node-a:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: provenance-node-a
+    environment:
+      PROVENANCE_SERVICE_ID: node-a
+      PROVENANCE_SERVICE_NAME: "GA4GH Provenance Server — Site A"
+      PROVENANCE_SITE: site-a
+      PROVENANCE_DATABASE_URL: "sqlite+aiosqlite:////data/provenance.db"
+      # Tell node-a about node-b so federated queries work
+      PROVENANCE_PEER_NODES: "http://node-b:8000"
+    ports:
+      - "8001:8000"
+    volumes:
+      - node-a-data:/data
+
+  node-b:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: provenance-node-b
+    environment:
+      PROVENANCE_SERVICE_ID: node-b
+      PROVENANCE_SERVICE_NAME: "GA4GH Provenance Server — Site B"
+      PROVENANCE_SITE: site-b
+      PROVENANCE_DATABASE_URL: "sqlite+aiosqlite:////data/provenance.db"
+      # node-b knows about node-a
+      PROVENANCE_PEER_NODES: "http://node-a:8000"
+    ports:
+      - "8002:8000"
+    volumes:
+      - node-b-data:/data
+
+volumes:
+  node-a-data:
+  node-b-data:
