@@ -12,6 +12,8 @@ Environment variables:
     DRS_DATA_DIR   Directory to serve files from (default: ./data)
     DRS_HOST       Public hostname/IP for self_uri and access URLs (default: localhost)
     DRS_PORT       Public port (default: 8080)
+    DRS_CORS_ORIGINS Comma-separated allowed browser origins
+                     (default: http://localhost:5173,http://127.0.0.1:5173)
 """
 
 import hashlib
@@ -20,11 +22,9 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -33,6 +33,14 @@ from pydantic import BaseModel
 DATA_DIR = Path(os.environ.get("DRS_DATA_DIR", "data")).resolve()
 DRS_HOST = os.environ.get("DRS_HOST", "localhost")
 DRS_PORT = int(os.environ.get("DRS_PORT", "8080"))
+DRS_CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "DRS_CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if origin.strip()
+]
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,6 +76,16 @@ def _iso(ts: float) -> str:
 
 def _public_base() -> str:
     return f"http://{DRS_HOST}:{DRS_PORT}"
+
+
+def _cors_origin(origin: str | None) -> str | None:
+    if not origin:
+        return None
+    if "*" in DRS_CORS_ORIGINS:
+        return origin
+    if origin in DRS_CORS_ORIGINS:
+        return origin
+    return None
 
 
 def _build_object(path: Path, object_id: str) -> dict:
@@ -117,17 +135,31 @@ def _index() -> dict[str, Path]:
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    start = time.perf_counter()
-    response = await call_next(request)
-    elapsed_ms = (time.perf_counter() - start) * 1000
-    log.info(
-        "method=%s path=%s status=%d client=%s elapsed_ms=%.1f",
-        request.method,
-        request.url.path,
-        response.status_code,
-        request.client.host if request.client else "unknown",
-        elapsed_ms,
-    )
+    allowed_origin = _cors_origin(request.headers.get("origin"))
+
+    if request.method == "OPTIONS":
+        response = Response(status_code=204)
+    else:
+        start = time.perf_counter()
+        response = await call_next(request)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        log.info(
+            "method=%s path=%s status=%d client=%s elapsed_ms=%.1f",
+            request.method,
+            request.url.path,
+            response.status_code,
+            request.client.host if request.client else "unknown",
+            elapsed_ms,
+        )
+
+    if allowed_origin is not None:
+        response.headers["Access-Control-Allow-Origin"] = allowed_origin
+        response.headers["Vary"] = "Origin"
+        response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = request.headers.get(
+            "access-control-request-headers", "*"
+        )
+
     return response
 
 
