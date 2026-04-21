@@ -1,0 +1,106 @@
+{
+  "@context": [
+    "https://schema.org",
+    {"x_ga4gh": "https://ga4gh.org/fedml/rate-card/v0#"}
+  ],
+  "@type": "Service",
+  "@id": "https://tes.example.edu/rate-card",
+  "identifier": "example-hpc",
+  "name": "Example University Research Computing",
+  "provider": {
+    "@type": "Organization",
+    "name": "Example University Research Computing"
+  },
+  "x_ga4gh:specVersion": "0.1.0",
+  "x_ga4gh:rateCardVersion": "2026.07",
+  "validFrom": "2026-07-01T00:00:00Z",
+  "validThrough": "2027-06-30T23:59:59Z",
+  "x_ga4gh:billingCurrency": "USD",
+
+  "x_ga4gh:requiresAllocation": true,
+  "x_ga4gh:allocationContact": "rc-help@example.edu",
+  "x_ga4gh:payerModel": "grant",
+  "x_ga4gh:dataGovernance": {
+    "phiAllowed": false,
+    "exportControlled": false,
+    "irbGated": false
+  },
+  "x_ga4gh:supportContact": "rc-help@example.edu",
+  "x_ga4gh:authentication": "CILogon",
+
+  "offers": [
+    {
+      "@type": "Offer",
+      "identifier": "gpu-ondemand",
+      "name": "A100 GPU partition, on-demand",
+      "x_ga4gh:skuId": "example.gpu.a100.ondemand",
+      "x_ga4gh:allowPreemption": false,
+      "x_ga4gh:hardware": {
+        "cpuModel": "AMD EPYC 7763",
+        "arch": "x86_64",
+        "memoryGiB": 256,
+        "gpuModel": "NVIDIA A100 40GB",
+        "interconnect": "HDR-IB"
+      },
+      "x_ga4gh:limits": {
+        "maxWallHours": 48,
+        "maxCpusPerJob": 128
+      },
+      "priceSpecification": [
+        {
+          "@type": "UnitPriceSpecification",
+          "price": "0.040",
+          "priceCurrency": "USD",
+          "unitCode": "HUR",
+          "unitText": "cpu_hour"
+        },
+        {
+          "@type": "UnitPriceSpecification",
+          "price": "0.010",
+          "priceCurrency": "USD",
+          "unitCode": "HUR",
+          "unitText": "gib_hour"
+        },
+        {
+          "@type": "UnitPriceSpecification",
+          "price": "2.50",
+          "priceCurrency": "USD",
+          "unitCode": "HUR",
+          "unitText": "gpu_hour"
+        }
+      ]
+    },
+    {
+      "@type": "Offer",
+      "identifier": "gpu-scavenger",
+      "name": "A100 GPU partition, preemptible scavenger queue",
+      "x_ga4gh:skuId": "example.gpu.a100.preempt",
+      "x_ga4gh:allowPreemption": true,
+      "x_ga4gh:hardware": {
+        "cpuModel": "AMD EPYC 7763",
+        "arch": "x86_64",
+        "memoryGiB": 256,
+        "gpuModel": "NVIDIA A100 40GB"
+      },
+      "x_ga4gh:limits": {
+        "maxWallHours": 4
+      },
+      "priceSpecification": [
+        {
+          "@type": "UnitPriceSpecification",
+          "price": "0.010",
+          "priceCurrency": "USD",
+          "unitCode": "HUR",
+          "unitText": "cpu_hour"
+        },
+        {
+          "@type": "UnitPriceSpecification",
+          "price": "0.625",
+          "priceCurrency": "USD",
+          "unitCode": "HUR",
+          "unitText": "gpu_hour"
+        }
+      ]
+    }
+  ]
+}

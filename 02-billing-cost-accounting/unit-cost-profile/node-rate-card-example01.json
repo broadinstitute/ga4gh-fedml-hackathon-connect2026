@@ -1,0 +1,89 @@
+{
+  "rateCardId": "rc-node-001",
+  "version": "1.0.0",
+  "currency": "USD",
+  "effectiveFrom": "2026-04-15T00:00:00Z",
+  "effectiveTo": null,
+  "provider": {
+    "nodeId": "node-abc123",
+    "name": "Example FL Node",
+    "region": "ca-central-1"
+  },
+  "scope": {
+    "billingUnit": "gb",
+    "granularity": {
+      "compute": "hour",
+      "network": "gb",
+      "access": "request"
+    }
+  },
+  "pricing": {
+    "compute": {
+      "defaultRate": 0.42,
+      "unit": "hour",
+      "billingModel": "per_unit"
+    },
+    "network": {
+      "ingress": {
+        "defaultRate": 0.0,
+        "unit": "gb",
+        "billingModel": "per_unit",
+        "notes": "Ingress is typically free unless overridden."
+      },
+      "egress": {
+        "billingModel": "tiered",
+        "unit": "gb",
+        "tiers": [
+          {
+            "upTo": 1024,
+            "rate": 0.09
+          },
+          {
+            "upTo": 10240,
+            "rate": 0.085
+          },
+          {
+            "upTo": null,
+            "rate": 0.07
+          }
+        ]
+      }
+    },
+    "access": {
+      "billingModel": "flat",
+      "flatFee": 25.0,
+      "unit": "month",
+      "appliesTo": [
+        "training_access",
+        "model_evaluation",
+        "api_access"
+      ]
+    }
+  },
+  "overrides": {
+    "byResourceClass": [
+      {
+        "resourceClass": "gpu_a100",
+        "computeRate": 1.8
+      },
+      {
+        "resourceClass": "cpu_standard",
+        "computeRate": 0.22
+      }
+    ],
+    "byNetworkPath": [
+      {
+        "path": "same_region",
+        "egressRate": 0.0
+      },
+      {
+        "path": "cross_region",
+        "egressRate": 0.11
+      }
+    ]
+  },
+  "metadata": {
+    "billingVersion": "2026-04",
+    "tags": ["federated-learning", "node-rate-card"]
+  }
+}
